@@ -35,19 +35,13 @@ If a grid is solved successfully but with more solutions than requested it is di
 
 The Puzzles folder contains grids from various sources converted to the solver input format:
 
-flowfree_*_random*.txt          Created by the generator
-
-flowfree_example_*.txt          https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/
-
-flowfree_huge/large/killer.txt  https://github.com/thomasahle/numberlink/tree/master/puzzles
-
-flowfree_nikoli_*.txt           http://www.nikoli.com/en/event/puzzle_hayatoki.html
-
-flowfree_oxford_*.txt           http://spivey.oriel.ox.ac.uk/wiki/index.php/Programming_competition_results
-
-flowfree_raetsel_*.txt          http://www.janko.at/Raetsel/Arukone/
-
-flowfree_wikipedia.txt          https://en.wikipedia.org/wiki/Numberlink
+| flowfree_*_random*.txt | Created by the generator |
+| flowfree_example_*.txt | https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/ |
+| flowfree_huge/large/killer.txt | https://github.com/thomasahle/numberlink/tree/master/puzzles |
+| flowfree_nikoli_*.txt | http://www.nikoli.com/en/event/puzzle_hayatoki.html |
+| flowfree_oxford_*.txt | http://spivey.oriel.ox.ac.uk/wiki/index.php/Programming_competition_results |
+| flowfree_raetsel_*.txt | http://www.janko.at/Raetsel/Arukone/ |
+| flowfree_wikipedia.txt | https://en.wikipedia.org/wiki/Numberlink |
 
 The others are FlowFree official grids.
 

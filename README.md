@@ -13,7 +13,7 @@ The solver is a solution to challenge https://www.reddit.com/r/dailyprogrammer/c
 
 The basic idea is at each step to choose the cell that has the least valid choices to link with its neighbours, then lock this cell and the links chosen, and go to next step until all cells are exhausted or an inconsistency is encountered (a cell with no valid choices). If a cell with one choice is encountered it is immediately locked without searching for another one.
 
-Explicit stacks are used instead of the classical recursive search function, to be able to solve large puzzles without having issue with stack size overflow.
+The search is iterative and is using explicit stacks, to be able to solve large puzzles without having issue with stack size overflow when the search is done recursively.
 
 First it tries to solve the puzzle with the additional constraint that no paths between two endpoints are self-touching, it means that one cell cannot have more that 2 neighbours of the same color (1 for an endpoint).
 

@@ -1,7 +1,7 @@
 # FlowFree
 FlowFree puzzles solver and generator written in C, works also for Numberlink/Arukone puzzles.
 
-Both solver and generator are implemented in the same source code (flowfree.c) and executable. Only input differs depending if which functionality you want to use.
+Both solver and generator are implemented in the same source code (flowfree.c) and executable. Only input differs depending on which functionality you want to use.
 
 A format converter is also available ("Raetsel" converter, see below).
 

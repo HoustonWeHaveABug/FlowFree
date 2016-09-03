@@ -31,9 +31,9 @@ Sample input data for the generator:
 
 12 16 14 0 3 1 1000000
 
-It means that the generator must create a puzzle with 12 colors in a grid of 16 columns by 14 rows, with self-touching forbidden, and minimal distance of 3 cells between two endpoints of the same color. The number of attempts made is shown every 1000000 grids.
+It means that the generator must create a puzzle with 12 colors in a grid of 16 columns by 14 rows, with self-touching forbidden, and a minimal distance of 3 cells between two endpoints of the same color. The number of attempts made is shown every 1000000 grids.
 
-If a grid is solved successfully but with more solutions than requested it is displayed with the message "Too many solutions" below.
+If a grid is solved successfully but with more solutions than requested in input it is displayed with the message "Too many solutions" below.
 
 ## Test data
 

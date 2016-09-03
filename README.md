@@ -11,7 +11,7 @@ The makefiles provided to generate the executables work only on Linux family ope
 
 The solver is a solution to challenge https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/, please read this page for more details especially regarding the input format specifications.
 
-The basic idea is at each step to choose the cell that has the least valid choices to link with its neighbours, then lock this cell and the links chosen, and go to next step until all cells are exhausted or an inconsistency is encountered (a cell with no valid choices). If a cell with one choice is encountered it is immediately locked without searching for another one.
+The basic idea is at each step to choose the cell that has the least valid choices to link with its neighbours, then lock this cell and the links chosen, and go to next step until a solution is found (all cells are exhausted) or an inconsistency is encountered (a cell has no valid choices). If a cell with one choice is encountered it is immediately locked without searching for another one.
 
 The search is iterative and is using explicit stacks, to be able to solve large puzzles without having issue with stack size overflow when the search is done recursively.
 

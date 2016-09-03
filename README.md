@@ -9,11 +9,11 @@ The makefiles provided to generate the executables work only on Linux family ope
 
 ## The solver
 
-The solver is a solution to challenge https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/, please read this page for more details especilly regarding the input format specifications.
+The solver is a solution to challenge https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/, please read this page for more details especially regarding the input format specifications.
 
 First it tries to solve the puzzle with the additional constraint that no paths between two endpoints are self-touching, it means that one cell cannot have more that 2 neighbours of the same color (1 for an endpoint).
 
-This additional constraint reduces the search space tremendously and allows to solve large grids almost instantly.
+This additional constraint reduces the search space tremendously and allows to solve a lot of large grids almost instantly.
 
 If the puzzle cannot be solved this way it tries again without this constraint. It seems that NumberLink/Arukone puzzles forbid self-touching implicitly, while FlowFree puzzles may allow it.
 
@@ -51,12 +51,12 @@ flowfree_wikipedia.txt          https://en.wikipedia.org/wiki/Numberlink
 
 The others are FlowFree official grids.
 
-## The Raetsel converter
+## The "Raetsel" converter
 
-convert_raetsel.c converts grids from the format used by this numberlink solver in Copris: http://bach.istc.kobe-u.ac.jp/copris/puzzles/numberlink/ to the format used by FlowFree solver.
+convert_raetsel.c converts grids from the format used by this numberlink solver in Copris: http://bach.istc.kobe-u.ac.jp/copris/puzzles/numberlink/ (which is using grids from http://www.janko.at/Raetsel/Arukone/) to the format used by the FlowFree solver.
 
 Input example
-'''
+```
 7
 12
 12
@@ -72,9 +72,9 @@ Input example
 - - 4 - - - - - - - 2 -
 - - - - - - - - - - 5 -
 - - - - - 1 - - - 7 - -
-'''
+```
 Output
-'''
+```
 7 12 12
 (11, 0) (5, 11)
 (1, 1) (10, 9)
@@ -83,4 +83,4 @@ Output
 (4, 7) (10, 10)
 (3, 4) (5, 5)
 (2, 1) (9, 11)
-'''
+```

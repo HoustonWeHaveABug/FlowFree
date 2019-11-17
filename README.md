@@ -31,7 +31,7 @@ Sample input data for the generator:
 
 12 16 14 0 3 1 1000000
 
-It means that the generator must create a puzzle with 12 colors in a grid of 16 columns by 14 rows, with self-touching forbidden, and a minimal distance of 3 cells between two endpoints of the same color. The number of attempts made is shown every 1000000 grids.
+It means that the generator must create a puzzle with 12 colors in a grid of 16 columns by 14 rows, with self-touching forbidden, and a minimal distance of 3 cells between two endpoints of the same color. The puzzle shall not have more than 1 solution. The number of attempts made is shown every 1000000 grids.
 
 If a grid is solved successfully but with more solutions than requested in input it is displayed with the message "Too many solutions" below.
 
@@ -41,12 +41,12 @@ The Puzzles folder contains grids from various sources converted to the solver i
 
 | Files | Source |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| flowfree_\*_random_*.txt | Created by the generator |
-| flowfree_example_*.txt | https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/ |
+| flowfree_\*_random_\*.txt | Created by the generator |
+| flowfree_example_\*.txt | https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/ |
 | flowfree_huge/large/killer.txt | https://github.com/thomasahle/numberlink/tree/master/puzzles |
-| flowfree_nikoli_*.txt | http://www.nikoli.com/en/event/puzzle_hayatoki.html |
-| flowfree_oxford_*.txt | http://spivey.oriel.ox.ac.uk/wiki/index.php/Programming_competition_results |
-| flowfree_raetsel_*.txt | http://www.janko.at/Raetsel/Arukone/ |
+| flowfree_nikoli_\*.txt | http://www.nikoli.com/en/event/puzzle_hayatoki.html |
+| flowfree_oxford_\*.txt | http://spivey.oriel.ox.ac.uk/wiki/index.php/Programming_competition_results |
+| flowfree_raetsel_\*.txt | http://www.janko.at/Raetsel/Arukone/ |
 | flowfree_wikipedia.txt | https://en.wikipedia.org/wiki/Numberlink |
 
 The others are FlowFree official grids.

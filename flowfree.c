@@ -3,15 +3,15 @@
 #include <time.h>
 #include <limits.h>
 
-#define LINKS_MAX 2
-#define OPTIONS_MAX 4
-#define CHOICES_MAX 2
+#define LINKS_MAX 2UL
+#define OPTIONS_MAX 4UL
+#define CHOICES_MAX 3UL
 #define PIPE_W 1UL
 #define PIPE_N 2UL
 #define PIPE_S 4UL
 #define PIPE_E 8UL
-#define CALLS_MAX 11
-#define ROLLS_MAX 4
+#define CALLS_MAX 12UL
+#define ROLLS_MAX 4UL
 
 typedef struct cell_s cell_t;
 typedef struct color_s color_t;
@@ -23,8 +23,8 @@ struct cell_s {
 	cell_t *path;
 	unsigned long rank;
 	color_t *color;
-	unsigned long links_max;
-	unsigned long links_n;
+	unsigned long links_todo;
+	unsigned long links_done;
 	cell_t *links[LINKS_MAX];
 	cell_t *last;
 	cell_t *next;
@@ -36,7 +36,7 @@ struct color_s {
 };
 
 typedef enum {
-	CALL_CHOOSE,
+	CALL_SELECT,
 	CALL_CHAIN,
 	CALL_UNROLL,
 	CALL_ROLL,
@@ -49,6 +49,11 @@ typedef struct {
 	cell_t *link;
 }
 option_t;
+
+typedef struct {
+	cell_t *cell;
+}
+selection_t;
 
 typedef struct {
 	cell_t *cell;
@@ -100,15 +105,14 @@ void set_cell_color(cell_t *, color_t *);
 void flowfree(void);
 void stack_call(call_t *, call_t);
 void perform_call(call_t *);
-void perform_choose(void);
-void print_color(color_t *);
-void print_cell(cell_t *, int);
+void stack_selection(selection_t *, cell_t *);
+void perform_selection(selection_t *);
 void set_constraint(cell_t *, constraint_t *);
 unsigned long set_options_empty(cell_t *, option_t []);
 unsigned long set_options_w(cell_t *, option_t []);
 unsigned long set_options_n(cell_t *, option_t []);
-unsigned long set_options_s(cell_t *, option_t []);
 unsigned long set_options_wn(cell_t *, option_t []);
+unsigned long set_options_s(cell_t *, option_t []);
 unsigned long set_options_ws(cell_t *, option_t []);
 unsigned long set_options_ns(cell_t *, option_t []);
 unsigned long set_options_wns(cell_t *, option_t []);
@@ -140,6 +144,8 @@ void stack_chain(chain_t *, cell_t *, unsigned long, option_t []);
 void stack_unroll(unroll_t *, cell_t *, choice_t *);
 void stack_roll(roll_t *, cell_t *, choice_t *);
 void stack_unchain(chain_t *, cell_t *, unsigned long, option_t []);
+void print_color(color_t *);
+void print_cell(cell_t *, int);
 void perform_chain(chain_t *);
 void add_pipe(cell_t *, unsigned long, cell_t *);
 void chain_cell(cell_t *);
@@ -155,68 +161,96 @@ cell_t *next_cell(cell_t *, cell_t *);
 void reset_color(color_t *);
 
 int touching_allowed, (*touching[])(cell_t *) = { no_touching, touching_w, touching_n, touching_wn, touching_s, touching_ws, touching_ns, no_touching, touching_e, touching_we, touching_ne, no_touching, touching_se, no_touching, no_touching, no_touching };
-unsigned long colors_n, columns_n, rows_n, distance_min, solutions_max, nodes_n, solutions_n, stack_calls_n, stack_chains_n, stack_unrolls_n, stack_rolls_n, stack_unchains_n, (*set_options[])(cell_t *, option_t []) = { set_options_empty, set_options_w, set_options_n, set_options_wn, set_options_s, set_options_ws, set_options_ns, set_options_wns, set_options_e, set_options_we, set_options_ne, set_options_wne, set_options_se, set_options_wse, set_options_nse, set_options_wnse };
-cell_t *cells, *cell_header;
+unsigned long colors_n, columns_n, rows_n, distance_min, solutions_max, nodes_n, solutions_n, stack_calls_n, stack_selections_n, stack_chains_n, stack_unrolls_n, stack_rolls_n, stack_unchains_n, (*set_options[])(cell_t *, option_t []) = { set_options_empty, set_options_w, set_options_n, set_options_wn, set_options_s, set_options_ws, set_options_ns, set_options_wns, set_options_e, set_options_we, set_options_ne, set_options_wne, set_options_se, set_options_wse, set_options_nse, set_options_wnse };
+cell_t *cells, *cells_header;
 color_t *colors;
 call_t *stack_calls;
+selection_t *stack_selections;
 chain_t *stack_chains, *stack_unchains;
 unroll_t *stack_unrolls;
 roll_t *stack_rolls;
 
 int main(void) {
-unsigned long attempts_n_mod, cells_n, attempts_n, i, j;
-cell_t *cell;
-	if (scanf("%lu%lu%lu", &colors_n, &columns_n, &rows_n) != 3 || !colors_n || columns_n < 2 || rows_n < 2 || columns_n*rows_n < colors_n*2) {
+	unsigned long cells_n, attempts_n_mod, i, j;
+	cell_t *cell;
+	if (scanf("%lu%lu%lu", &colors_n, &columns_n, &rows_n) != 3 || colors_n < 1UL || columns_n < 1UL || rows_n < 1UL) {
 		fprintf(stderr, "Invalid parameters\n");
+		fflush(stderr);
 		return EXIT_FAILURE;
 	}
 	cells_n = columns_n*rows_n;
-	cells = malloc(sizeof(cell_t)*(cells_n+1));
-	if (!cells) {
-		fprintf(stderr, "Could not allocate memory for cells\n");
+	if (cells_n < 2UL || cells_n < colors_n*2UL) {
+		fprintf(stderr, "Invalid parameters\n");
+		fflush(stderr);
 		return EXIT_FAILURE;
 	}
-	set_cell(cells, 0UL, 0UL, PIPE_E+PIPE_S);
-	cell = cells+1;
-	for (j = 1; j < rows_n-1; j++) {
-		set_cell(cell++, 0UL, j, PIPE_N+PIPE_E+PIPE_S);
+	cells = malloc(sizeof(cell_t)*(cells_n+1UL));
+	if (!cells) {
+		fprintf(stderr, "Could not allocate memory for cells\n");
+		fflush(stderr);
+		return EXIT_FAILURE;
 	}
-	set_cell(cell++, 0UL, j, PIPE_N+PIPE_E);
-	for (i = 1; i < columns_n-1; i++) {
-		set_cell(cell++, i, 0UL, PIPE_W+PIPE_E+PIPE_S);
-		for (j = 1; j < rows_n-1; j++) {
-			set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_E+PIPE_S);
+	if (columns_n == 1UL) {
+		set_cell(cells, 0UL, 0UL, PIPE_S);
+		cell = cells+1UL;
+		for (j = 1UL; j < rows_n-1UL; j++) {
+			set_cell(cell++, 0UL, j, PIPE_N+PIPE_S);
 		}
-		set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_E);
+		set_cell(cell++, 0UL, j, PIPE_N);
 	}
-	set_cell(cell++, i, 0UL, PIPE_W+PIPE_S);
-	for (j = 1; j < rows_n-1; j++) {
-		set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_S);
+	else if (rows_n == 1UL) {
+		set_cell(cells, 0UL, 0UL, PIPE_E);
+		cell = cells+1UL;
+		for (i = 1UL; i < columns_n-1UL; i++) {
+			set_cell(cell++, i, 0UL, PIPE_W+PIPE_E);
+		}
+		set_cell(cell++, i, 0UL, PIPE_W);
 	}
-	set_cell(cell, i, j, PIPE_W+PIPE_N);
-	cell_header = cell+1;
-	link_cell(cells, cell_header, cells+1);
-	for (cell = cells+1; cell < cell_header; cell++) {
-		link_cell(cell, cell-1, cell+1);
+	else {
+		set_cell(cells, 0UL, 0UL, PIPE_E+PIPE_S);
+		cell = cells+1UL;
+		for (j = 1UL; j < rows_n-1UL; j++) {
+			set_cell(cell++, 0UL, j, PIPE_N+PIPE_E+PIPE_S);
+		}
+		set_cell(cell++, 0UL, j, PIPE_N+PIPE_E);
+		for (i = 1UL; i < columns_n-1UL; i++) {
+			set_cell(cell++, i, 0UL, PIPE_W+PIPE_E+PIPE_S);
+			for (j = 1UL; j < rows_n-1UL; j++) {
+				set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_E+PIPE_S);
+			}
+			set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_E);
+		}
+		set_cell(cell++, i, 0UL, PIPE_W+PIPE_S);
+		for (j = 1UL; j < rows_n-1UL; j++) {
+			set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_S);
+		}
+		set_cell(cell++, i, j, PIPE_W+PIPE_N);
 	}
-	link_cell(cell, cell-1, cells);
+	cells_header = cell;
+	link_cell(cells, cells_header, cells+1UL);
+	for (cell = cells+1UL; cell < cells_header; cell++) {
+		link_cell(cell, cell-1UL, cell+1UL);
+	}
+	link_cell(cell, cell-1UL, cells);
 	colors = malloc(sizeof(color_t)*colors_n);
 	if (!colors) {
 		fprintf(stderr, "Could not allocate memory for colors\n");
+		fflush(stderr);
 		free(cells);
 		return EXIT_FAILURE;
 	}
 	if (scanf("%d", &touching_allowed) == 1) {
-		if (scanf("%lu", &distance_min) != 1 || !distance_min || distance_min > columns_n+rows_n-colors_n-1 || scanf("%lu%lu", &solutions_max, &attempts_n_mod) != 2 || !solutions_max || !attempts_n_mod) {
+		if (scanf("%lu", &distance_min) != 1 || distance_min < 1UL || distance_min > columns_n+rows_n-colors_n-1UL || scanf("%lu%lu", &solutions_max, &attempts_n_mod) != 2 || solutions_max < 1UL || attempts_n_mod < 1UL) {
 			fprintf(stderr, "Invalid generator parameters\n");
+			fflush(stderr);
 			return EXIT_FAILURE;
 		}
 	}
 	else {
-		distance_min = 0;
+		distance_min = 0UL;
 		solutions_max = ULONG_MAX;
-		attempts_n_mod = 1;
-		for (i = 0; i < colors_n; i++) {
+		attempts_n_mod = 1UL;
+		for (i = 0UL; i < colors_n; i++) {
 			if (!read_color(colors+i)) {
 				free(colors);
 				free(cells);
@@ -224,9 +258,19 @@ cell_t *cell;
 			}
 		}
 	}
-	stack_calls = malloc(sizeof(call_t)*(cells_n*CALLS_MAX+1));
+	stack_calls = malloc(sizeof(call_t)*(cells_n*CALLS_MAX+1UL));
 	if (!stack_calls) {
 		fprintf(stderr, "Could not allocate memory for calls stack\n");
+		fflush(stderr);
+		free(colors);
+		free(cells);
+		return EXIT_FAILURE;
+	}
+	stack_selections = malloc(sizeof(selection_t)*(cells_n*(CHOICES_MAX-1UL)+1UL));
+	if (!stack_selections) {
+		fprintf(stderr, "Could not allocate memory for selections stack\n");
+		fflush(stderr);
+		free(stack_calls);
 		free(colors);
 		free(cells);
 		return EXIT_FAILURE;
@@ -234,6 +278,8 @@ cell_t *cell;
 	stack_chains = malloc(sizeof(chain_t)*cells_n);
 	if (!stack_chains) {
 		fprintf(stderr, "Could not allocate memory for chains stack\n");
+		fflush(stderr);
+		free(stack_selections);
 		free(stack_calls);
 		free(colors);
 		free(cells);
@@ -242,7 +288,9 @@ cell_t *cell;
 	stack_unrolls = malloc(sizeof(unroll_t)*cells_n*ROLLS_MAX);
 	if (!stack_unrolls) {
 		fprintf(stderr, "Could not allocate memory for unrolls stack\n");
+		fflush(stderr);
 		free(stack_chains);
+		free(stack_selections);
 		free(stack_calls);
 		free(colors);
 		free(cells);
@@ -251,8 +299,10 @@ cell_t *cell;
 	stack_rolls = malloc(sizeof(roll_t)*cells_n*ROLLS_MAX);
 	if (!stack_rolls) {
 		fprintf(stderr, "Could not allocate memory for rolls stack\n");
+		fflush(stderr);
 		free(stack_unrolls);
 		free(stack_chains);
+		free(stack_selections);
 		free(stack_calls);
 		free(colors);
 		free(cells);
@@ -261,47 +311,55 @@ cell_t *cell;
 	stack_unchains = malloc(sizeof(chain_t)*cells_n);
 	if (!stack_unchains) {
 		fprintf(stderr, "Could not allocate memory for unchains stack\n");
+		fflush(stderr);
 		free(stack_rolls);
 		free(stack_unrolls);
 		free(stack_chains);
+		free(stack_selections);
 		free(stack_calls);
 		free(colors);
 		free(cells);
 		return EXIT_FAILURE;
 	}
-	if (distance_min) {
+	if (distance_min > 0UL) {
+		unsigned long attempts_n;
 		srand((unsigned)time(NULL));
-		attempts_n = 0;
+		attempts_n = 0UL;
 		do {
-			for (i = 0; i < colors_n; i++) {
+			for (i = 0UL; i < colors_n; i++) {
 				set_color(colors+i);
 			}
 			flowfree();
-			for (i = 0; i < colors_n; i++) {
+			for (i = 0UL; i < colors_n; i++) {
 				reset_color(colors+i);
 			}
 			attempts_n++;
-			if (attempts_n%attempts_n_mod == 0) {
+			if (attempts_n%attempts_n_mod == 0UL) {
 				printf("Attempts %lu\n", attempts_n);
+				fflush(stdout);
 			}
 		}
-		while (!solutions_n || solutions_n > solutions_max);
+		while (solutions_n == 0UL || solutions_n > solutions_max);
 		printf("\nNodes %lu\nSolutions %lu\nAttempts %lu\n", nodes_n, solutions_n, attempts_n);
+		fflush(stdout);
 	}
 	else {
 		touching_allowed = 0;
 		flowfree();
 		printf("\nTouching forbidden\nNodes %lu\nSolutions %lu\n", nodes_n, solutions_n);
-		if (!solutions_n) {
+		fflush(stdout);
+		if (solutions_n == 0UL) {
 			touching_allowed = 1;
 			flowfree();
 			printf("\nTouching allowed\nNodes %lu\nSolutions %lu\n", nodes_n, solutions_n);
+			fflush(stdout);
 		}
 	}
 	free(stack_unchains);
 	free(stack_rolls);
 	free(stack_unrolls);
 	free(stack_chains);
+	free(stack_selections);
 	free(stack_calls);
 	free(colors);
 	free(cells);
@@ -309,16 +367,16 @@ cell_t *cell;
 }
 
 void set_cell(cell_t *cell, unsigned long column, unsigned long row, unsigned long pipes) {
-unsigned long i;
+	unsigned long i;
 	cell->column = column;
 	cell->row = row;
 	cell->pipes = pipes;
 	cell->path = cell;
-	cell->rank = 1;
+	cell->rank = 1UL;
 	cell->color = NULL;
-	cell->links_max = LINKS_MAX;
-	cell->links_n = 0;
-	for (i = 0; i < LINKS_MAX; i++) {
+	cell->links_todo = LINKS_MAX;
+	cell->links_done = 0UL;
+	for (i = 0UL; i < LINKS_MAX; i++) {
 		cell->links[i] = NULL;
 	}
 }
@@ -332,19 +390,23 @@ int read_color(color_t *color) {
 	color->start = read_cell(' ');
 	if (!color->start) {
 		fprintf(stderr, "Invalid start cell\n");
+		fflush(stderr);
 		return 0;
 	}
 	if (color->start->color) {
 		fprintf(stderr, "Start cell color already set\n");
+		fflush(stderr);
 		return 0;
 	}
 	color->end = read_cell('\n');
 	if (!color->end) {
 		fprintf(stderr, "Invalid end cell\n");
+		fflush(stderr);
 		return 0;
 	}
 	if (color->end->color) {
 		fprintf(stderr, "End cell color already set\n");
+		fflush(stderr);
 		return 0;
 	}
 	set_cell_color(color->start, color);
@@ -353,7 +415,7 @@ int read_color(color_t *color) {
 }
 
 cell_t *read_cell(int c) {
-unsigned long x, y;
+	unsigned long x, y;
 	if (scanf("(%lu, %lu)", &x, &y) != 2 || x > columns_n || y > rows_n || fgetc(stdin) != c) {
 		return NULL;
 	}
@@ -361,7 +423,7 @@ unsigned long x, y;
 }
 
 void set_color(color_t *color) {
-unsigned long start_x, start_y, end_x, end_y;
+	unsigned long start_x, start_y, end_x, end_y;
 	do {
 		color->start = cells+random_xy(&start_x, &start_y);
 		color->end = cells+random_xy(&end_x, &end_y);
@@ -378,7 +440,7 @@ unsigned long random_xy(unsigned long *x, unsigned long *y) {
 }
 
 unsigned long erand(unsigned long values) {
-	return (unsigned long)(rand()/(RAND_MAX+1.0)*values);
+	return (unsigned long)(rand()/(RAND_MAX+1.0)*(double)values);
 }
 
 unsigned long get_distance(unsigned long x1, unsigned long y1, unsigned long x2, unsigned long y2) {
@@ -386,39 +448,35 @@ unsigned long get_distance(unsigned long x1, unsigned long y1, unsigned long x2,
 		if (y1 < y2) {
 			return x2-x1+y2-y1;
 		}
-		else {
-			return x2-x1+y1-y2;
-		}
+		return x2-x1+y1-y2;
 	}
-	else {
-		if (y1 < y2) {
-			return x1-x2+y2-y1;
-		}
-		else {
-			return x1-x2+y1-y2;
-		}
+	if (y1 < y2) {
+		return x1-x2+y2-y1;
 	}
+	return x1-x2+y1-y2;
 }
 
 void set_cell_color(cell_t *cell, color_t *color) {
 	cell->color = color;
-	cell->links_max--;
+	cell->links_todo--;
 }
 
 void flowfree(void) {
-	nodes_n = 0;
-	solutions_n = 0;
-	stack_calls_n = 0;
-	stack_chains_n = 0;
-	stack_unrolls_n = 0;
-	stack_rolls_n = 0;
-	stack_unchains_n = 0;
-	stack_call(stack_calls, CALL_CHOOSE);
+	nodes_n = 0UL;
+	solutions_n = 0UL;
+	stack_calls_n = 0UL;
+	stack_selections_n = 0UL;
+	stack_chains_n = 0UL;
+	stack_unrolls_n = 0UL;
+	stack_rolls_n = 0UL;
+	stack_unchains_n = 0UL;
+	stack_selection(stack_selections+stack_selections_n, cells_header->next);
+	stack_call(stack_calls, CALL_SELECT);
 	do {
 		stack_calls_n--;
 		perform_call(stack_calls+stack_calls_n);
 	}
-	while (stack_calls_n);
+	while (stack_calls_n > 0UL);
 }
 
 void stack_call(call_t *call, call_t type) {
@@ -428,8 +486,9 @@ void stack_call(call_t *call, call_t type) {
 
 void perform_call(call_t *call) {
 	switch (*call) {
-	case CALL_CHOOSE:
-		perform_choose();
+	case CALL_SELECT:
+		stack_selections_n--;
+		perform_selection(stack_selections+stack_selections_n);
 		break;
 	case CALL_CHAIN:
 		stack_chains_n--;
@@ -450,195 +509,199 @@ void perform_call(call_t *call) {
 	}
 }
 
-void perform_choose(void) {
-unsigned long i, j;
-cell_t *cell_min, *cell;
-constraint_t constraint_min, constraint;
+void stack_selection(selection_t *selection, cell_t *cell) {
+	selection->cell = cell;
+	stack_selections_n++;
+}
+
+void perform_selection(selection_t *selection) {
 	nodes_n++;
-	if (cell_header->next == cell_header) {
+	if (cells_header->next != cells_header) {
+		if (solutions_n <= solutions_max) {
+			cell_t *cell_min = selection->cell, *cell;
+			constraint_t constraint_min;
+			set_constraint(cell_min, &constraint_min);
+			for (cell = cell_min->next; cell != selection->cell && constraint_min.choices_n > 1UL; cell = cell->next) {
+				constraint_t constraint;
+				if (cell == cells_header) {
+					continue;
+				}
+				set_constraint(cell, &constraint);
+				if (constraint.choices_n < constraint_min.choices_n || (constraint.choices_n == constraint_min.choices_n && cell->links_todo > cell_min->links_todo)) {
+					cell_min = cell;
+					constraint_min = constraint;
+				}
+			}
+			if (constraint_min.choices_n > 0UL) {
+				unsigned long i;
+				stack_chain(stack_chains+stack_chains_n, cell_min, constraint_min.options_n, constraint_min.options);
+				stack_call(stack_calls+stack_calls_n, CALL_CHAIN);
+				for (i = constraint_min.choices_n; i > 0UL; i--) {
+					unsigned long j;
+					for (j = 0UL; j < cell_min->links_todo; j++) {
+						stack_unroll(stack_unrolls+stack_unrolls_n, cell_min, &constraint_min.choices[i-1UL][j]);
+						stack_call(stack_calls+stack_calls_n, CALL_UNROLL);
+					}
+					if (constraint_min.choices_n == 1UL) {
+						if (cell_min->next != cells_header) {
+							stack_selection(stack_selections+stack_selections_n, cell_min->next);
+						}
+						else {
+							stack_selection(stack_selections+stack_selections_n, cells_header->next);
+						}
+					}
+					else {
+						if (cell_min != cells_header->next) {
+							stack_selection(stack_selections+stack_selections_n, cells_header->next);
+						}
+						else {
+							stack_selection(stack_selections+stack_selections_n, cell_min->next);
+						}
+					}
+					stack_call(stack_calls+stack_calls_n, CALL_SELECT);
+					for (; j > 0UL; j--) {
+						stack_roll(stack_rolls+stack_rolls_n, cell_min, &constraint_min.choices[i-1UL][j-1UL]);
+						stack_call(stack_calls+stack_calls_n, CALL_ROLL);
+					}
+				}
+				stack_unchain(stack_unchains+stack_unchains_n, cell_min, constraint_min.options_n, constraint_min.options);
+				stack_call(stack_calls+stack_calls_n, CALL_UNCHAIN);
+			}
+		}
+	}
+	else {
 		solutions_n++;
-		if (solutions_n == 1) {
+		if (solutions_n == 1UL) {
+			unsigned long i;
 			puts("");
-			if (distance_min) {
+			if (distance_min > 0UL) {
 				printf("%lu %lu %lu\n", colors_n, columns_n, rows_n);
 			}
-			for (i = 0; i < colors_n; i++) {
+			for (i = 0UL; i < colors_n; i++) {
 				print_color(colors+i);
 			}
 		}
 		else if (solutions_n > solutions_max) {
 			puts("\nToo many solutions");
 		}
+		fflush(stdout);
 	}
-	else {
-		cell_min = cell_header->next;
-		set_constraint(cell_min, &constraint_min);
-		for (cell = cell_min->next; cell != cell_header && constraint_min.choices_n > 1; cell = cell->next) {
-			set_constraint(cell, &constraint);
-			if (constraint.choices_n < constraint_min.choices_n) {
-				cell_min = cell;
-				constraint_min = constraint;
-			}
-		}
-		if (constraint_min.choices_n && solutions_n <= solutions_max) {
-			stack_chain(stack_chains+stack_chains_n, cell_min, constraint_min.options_n, constraint_min.options);
-			stack_call(stack_calls+stack_calls_n, CALL_CHAIN);
-			for (i = constraint_min.choices_n; i; i--) {
-				for (j = 0; j < cell_min->links_max; j++) {
-					stack_unroll(stack_unrolls+stack_unrolls_n, cell_min, &constraint_min.choices[i-1][j]);
-					stack_call(stack_calls+stack_calls_n, CALL_UNROLL);
-				}
-				stack_call(stack_calls+stack_calls_n, CALL_CHOOSE);
-				for (j = cell_min->links_max; j; j--) {
-					stack_roll(stack_rolls+stack_rolls_n, cell_min, &constraint_min.choices[i-1][j-1]);
-					stack_call(stack_calls+stack_calls_n, CALL_ROLL);
-				}
-			}
-			stack_unchain(stack_unchains+stack_unchains_n, cell_min, constraint_min.options_n, constraint_min.options);
-			stack_call(stack_calls+stack_calls_n, CALL_UNCHAIN);
-		}
-	}
-}
-
-void print_color(color_t *color) {
-cell_t *cell, *next, *last;
-	if (distance_min) {
-		print_cell(color->start, ' ');
-		print_cell(color->end, '\n');
-	}
-	else {
-		cell = color->start;
-		next = next_cell(cell, NULL);
-		print_cell(cell, ' ');
-		while (next != color->end) {
-			last = cell;
-			cell = next;
-			next = next_cell(cell, last);
-			print_cell(cell, ' ');
-		}
-		print_cell(next, '\n');
-	}
-}
-
-void print_cell(cell_t *cell, int c) {
-	printf("(%lu, %lu)", cell->column, cell->row);
-	putchar(c);
 }
 
 void set_constraint(cell_t *cell, constraint_t *constraint) {
-unsigned long rolls_n, rolls_idx[LINKS_MAX], i;
-option_t *rolls[OPTIONS_MAX];
 	constraint->options_n = set_options[cell->pipes](cell, constraint->options);
-	if (!cell->links_max) {
-		constraint->choices_n = 1;
+	if (cell->links_todo == 0UL) {
+		constraint->choices_n = 1UL;
 	}
 	else {
-		rolls_n = 0;
-		for (i = 0; i < constraint->options_n; i++) {
+		unsigned long rolls_n = 0UL, i;
+		option_t *rolls[OPTIONS_MAX];
+		for (i = 0UL; i < constraint->options_n; i++) {
 			add_roll_option(cell, constraint->options+i, &rolls_n, rolls);
 		}
-		constraint->choices_n = 0;
-		if (rolls_n >= cell->links_max) {
-			add_choices(cell, rolls, rolls_idx, 0UL, cell->links_max, 0UL, rolls_n, 0UL, &constraint->choices_n, constraint->choices);
+		constraint->choices_n = 0UL;
+		if (rolls_n >= cell->links_todo) {
+			unsigned long rolls_idx[LINKS_MAX];
+			add_choices(cell, rolls, rolls_idx, 0UL, cell->links_todo, 0UL, rolls_n, 0UL, &constraint->choices_n, constraint->choices);
 		}
 	}
 }
 
 unsigned long set_options_empty(cell_t *cell, option_t options[]) {
 	set_option(options, 0UL, cell);
-	return 0;
+	return 0UL;
 }
 
 unsigned long set_options_w(cell_t *cell, option_t options[]) {
 	set_option(options, PIPE_W, cell-rows_n);
-	return 1;
+	return 1UL;
 }
 
 unsigned long set_options_n(cell_t *cell, option_t options[]) {
-	set_option(options, PIPE_N, cell-1);
-	return 1;
+	set_option(options, PIPE_N, cell-1UL);
+	return 1UL;
 }
 
 unsigned long set_options_wn(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
-	set_option(options, PIPE_N, cell-1);
-	return 2;
+	set_option(options, PIPE_N, cell-1UL);
+	return 2UL;
 }
 
 unsigned long set_options_s(cell_t *cell, option_t options[]) {
-	set_option(options, PIPE_S, cell+1);
-	return 1;
+	set_option(options, PIPE_S, cell+1UL);
+	return 1UL;
 }
 
 unsigned long set_options_ws(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
-	set_option(options, PIPE_S, cell+1);
-	return 2;
+	set_option(options, PIPE_S, cell+1UL);
+	return 2UL;
 }
 
 unsigned long set_options_ns(cell_t *cell, option_t options[]) {
-	set_option(options++, PIPE_N, cell-1);
-	set_option(options, PIPE_S, cell+1);
-	return 2;
+	set_option(options++, PIPE_N, cell-1UL);
+	set_option(options, PIPE_S, cell+1UL);
+	return 2UL;
 }
 
 unsigned long set_options_wns(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
-	set_option(options++, PIPE_N, cell-1);
-	set_option(options, PIPE_S, cell+1);
-	return 3;
+	set_option(options++, PIPE_N, cell-1UL);
+	set_option(options, PIPE_S, cell+1UL);
+	return 3UL;
 }
 
 unsigned long set_options_e(cell_t *cell, option_t options[]) {
 	set_option(options, PIPE_E, cell+rows_n);
-	return 1;
+	return 1UL;
 }
 
 unsigned long set_options_we(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 2;
+	return 2UL;
 }
 
 unsigned long set_options_ne(cell_t *cell, option_t options[]) {
-	set_option(options++, PIPE_N, cell-1);
+	set_option(options++, PIPE_N, cell-1UL);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 2;
+	return 2UL;
 }
 
 unsigned long set_options_wne(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
-	set_option(options++, PIPE_N, cell-1);
+	set_option(options++, PIPE_N, cell-1UL);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 3;
+	return 3UL;
 }
 
 unsigned long set_options_se(cell_t *cell, option_t options[]) {
-	set_option(options++, PIPE_S, cell+1);
+	set_option(options++, PIPE_S, cell+1UL);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 2;
+	return 2UL;
 }
 
 unsigned long set_options_wse(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
-	set_option(options++, PIPE_S, cell+1);
+	set_option(options++, PIPE_S, cell+1UL);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 3;
+	return 3UL;
 }
 
 unsigned long set_options_nse(cell_t *cell, option_t options[]) {
-	set_option(options++, PIPE_N, cell-1);
-	set_option(options++, PIPE_S, cell+1);
+	set_option(options++, PIPE_N, cell-1UL);
+	set_option(options++, PIPE_S, cell+1UL);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 3;
+	return 3UL;
 }
 
 unsigned long set_options_wnse(cell_t *cell, option_t options[]) {
 	set_option(options++, PIPE_W, cell-rows_n);
-	set_option(options++, PIPE_N, cell-1);
-	set_option(options++, PIPE_S, cell+1);
+	set_option(options++, PIPE_N, cell-1UL);
+	set_option(options++, PIPE_S, cell+1UL);
 	set_option(options, PIPE_E, cell+rows_n);
-	return 4;
+	return 4UL;
 }
 
 void set_option(option_t *option, unsigned long pipe_used, cell_t *link) {
@@ -647,29 +710,31 @@ void set_option(option_t *option, unsigned long pipe_used, cell_t *link) {
 }
 
 void add_roll_option(cell_t *cell, option_t *option, unsigned long *rolls_n, option_t *rolls[]) {
-	if (option->link->links_max && roll_option(cell, option->link)) {
+	if (option->link->links_todo > 0UL && roll_option(cell, option->link)) {
 		rolls[*rolls_n] = option;
-		*rolls_n = *rolls_n+1;
+		*rolls_n = *rolls_n+1UL;
 	}
 }
 
 void add_choices(cell_t *cell, option_t *rolls[], unsigned long rolls_idx[], unsigned long step, unsigned long step_max, unsigned long rolls_start, unsigned long rolls_n, unsigned long pipes, unsigned long *choices_n, choice_t choices[][LINKS_MAX]) {
-unsigned long i, j;
 	if (step < step_max) {
+		unsigned long i;
 		for (i = rolls_start; i < rolls_n && *choices_n < CHOICES_MAX; i++) {
-			for (j = 0; j < step && roll_option(rolls[rolls_idx[j]]->link, rolls[i]->link); j++);
+			unsigned long j;
+			for (j = 0UL; j < step && roll_option(rolls[rolls_idx[j]]->link, rolls[i]->link); j++);
 			if (j == step) {
 				rolls_idx[step] = i;
-				add_choices(cell, rolls, rolls_idx, step+1, step_max, i+1, rolls_n, pipes+rolls[i]->pipe_used, choices_n, choices);
+				add_choices(cell, rolls, rolls_idx, step+1UL, step_max, i+1UL, rolls_n, pipes+rolls[i]->pipe_used, choices_n, choices);
 			}
 		}
 	}
 	else {
 		if (touching_allowed || !touching[pipes](cell)) {
-			for (i = 0; i < step_max; i++) {
+			unsigned long i;
+			for (i = 0UL; i < step_max; i++) {
 				choices[*choices_n][i].link = rolls[rolls_idx[i]]->link;
 			}
-			*choices_n = *choices_n+1;
+			*choices_n = *choices_n+1UL;
 		}
 	}
 }
@@ -678,19 +743,10 @@ int roll_option(cell_t *cell, cell_t *link) {
 	if (link->path == cell->path) {
 		return 0;
 	}
-	else {
-		if (link->path->color) {
-			if (cell->path->color) {
-				return link->path->color == cell->path->color;
-			}
-			else {
-				return 1;
-			}
-		}
-		else {
-			return 1;
-		}
+	if (link->path->color && cell->path->color) {
+		return link->path->color == cell->path->color;
 	}
+	return 1;
 }
 
 int no_touching(cell_t *cell) {
@@ -698,19 +754,19 @@ int no_touching(cell_t *cell) {
 }
 
 int touching_w(cell_t *cell) {
-	if (cell->row) {
-		if (same_path(cell, cell-rows_n-1) || same_path(cell-rows_n, cell-1)) {
+	if (cell->row > 0UL) {
+		if (same_path(cell, cell-rows_n-1UL) || same_path(cell-rows_n, cell-1UL)) {
 			return 1;
 		}
-		if (same_path(cell, cell-1) && same_path(cell-rows_n, cell-rows_n-1)) {
+		if (same_path(cell, cell-1UL) && same_path(cell-rows_n, cell-rows_n-1UL)) {
 			return 1;
 		}
 	}
-	if (cell->row < rows_n-1) {
-		if (same_path(cell, cell-rows_n+1) || same_path(cell-rows_n, cell+1)) {
+	if (cell->row < rows_n-1UL) {
+		if (same_path(cell, cell-rows_n+1UL) || same_path(cell-rows_n, cell+1UL)) {
 			return 1;
 		}
-		if (same_path(cell, cell+1) && same_path(cell-rows_n, cell-rows_n+1)) {
+		if (same_path(cell, cell+1UL) && same_path(cell-rows_n, cell-rows_n+1UL)) {
 			return 1;
 		}
 	}
@@ -718,19 +774,19 @@ int touching_w(cell_t *cell) {
 }
 
 int touching_n(cell_t *cell) {
-	if (cell->column) {
-		if (same_path(cell, cell-rows_n-1) || same_path(cell-1, cell-rows_n)) {
+	if (cell->column > 0UL) {
+		if (same_path(cell, cell-rows_n-1UL) || same_path(cell-1UL, cell-rows_n)) {
 			return 1;
 		}
-		if (same_path(cell, cell-rows_n) && same_path(cell-1, cell-rows_n-1)) {
+		if (same_path(cell, cell-rows_n) && same_path(cell-1UL, cell-rows_n-1UL)) {
 			return 1;
 		}
 	}
-	if (cell->column < columns_n-1) {
-		if (same_path(cell, cell+rows_n-1) || same_path(cell-1, cell+rows_n)) {
+	if (cell->column < columns_n-1UL) {
+		if (same_path(cell, cell+rows_n-1UL) || same_path(cell-1UL, cell+rows_n)) {
 			return 1;
 		}
-		if (same_path(cell, cell+rows_n) && same_path(cell-1, cell+rows_n-1)) {
+		if (same_path(cell, cell+rows_n) && same_path(cell-1UL, cell+rows_n-1UL)) {
 			return 1;
 		}
 	}
@@ -738,32 +794,32 @@ int touching_n(cell_t *cell) {
 }
 
 int touching_wn(cell_t *cell) {
-	if (same_path(cell-rows_n, cell-rows_n-1) || same_path(cell-1, cell-rows_n-1)) {
+	if (same_path(cell-rows_n, cell-rows_n-1UL) || same_path(cell-1UL, cell-rows_n-1UL)) {
 		return 1;
 	}
-	if (cell->row < rows_n-1 && same_path(cell-rows_n, cell+1)) {
+	if (cell->row < rows_n-1UL && same_path(cell-rows_n, cell+1UL)) {
 		return 1;
 	}
-	if (cell->column < columns_n-1 && same_path(cell-1, cell+rows_n)) {
+	if (cell->column < columns_n-1UL && same_path(cell-1UL, cell+rows_n)) {
 		return 1;
 	}
 	return 0;
 }
 
 int touching_s(cell_t *cell) {
-	if (cell->column) {
-		if (same_path(cell, cell-rows_n+1) || same_path(cell+1, cell-rows_n)) {
+	if (cell->column > 0UL) {
+		if (same_path(cell, cell-rows_n+1UL) || same_path(cell+1UL, cell-rows_n)) {
 			return 1;
 		}
-		if (same_path(cell, cell-rows_n) && same_path(cell+1, cell-rows_n+1)) {
+		if (same_path(cell, cell-rows_n) && same_path(cell+1UL, cell-rows_n+1UL)) {
 			return 1;
 		}
 	}
-	if (cell->column < columns_n-1) {
-		if (same_path(cell, cell+rows_n+1) || same_path(cell+1, cell+rows_n)) {
+	if (cell->column < columns_n-1UL) {
+		if (same_path(cell, cell+rows_n+1UL) || same_path(cell+1UL, cell+rows_n)) {
 			return 1;
 		}
-		if (same_path(cell, cell+rows_n) && same_path(cell+1, cell+rows_n+1)) {
+		if (same_path(cell, cell+rows_n) && same_path(cell+1UL, cell+rows_n+1UL)) {
 			return 1;
 		}
 	}
@@ -771,26 +827,26 @@ int touching_s(cell_t *cell) {
 }
 
 int touching_ws(cell_t *cell) {
-	if (same_path(cell-rows_n, cell-rows_n+1) || same_path(cell+1, cell-rows_n+1)) {
+	if (same_path(cell-rows_n, cell-rows_n+1UL) || same_path(cell+1UL, cell-rows_n+1UL)) {
 		return 1;
 	}
-	if (cell->row && same_path(cell-rows_n, cell-1)) {
+	if (cell->row > 0UL && same_path(cell-rows_n, cell-1UL)) {
 		return 1;
 	}
-	if (cell->column < columns_n-1 && same_path(cell+1, cell+rows_n)) {
+	if (cell->column < columns_n-1UL && same_path(cell+1UL, cell+rows_n)) {
 		return 1;
 	}
 	return 0;
 }
 
 int touching_ns(cell_t *cell) {
-	if (cell->column) {
-		if (same_path(cell-1, cell-rows_n) || same_path(cell-1, cell-rows_n+1) || same_path(cell+1, cell-rows_n-1) || same_path(cell+1, cell-rows_n)) {
+	if (cell->column > 0UL) {
+		if (same_path(cell-1UL, cell-rows_n) || same_path(cell-1UL, cell-rows_n+1UL) || same_path(cell+1UL, cell-rows_n-1UL) || same_path(cell+1UL, cell-rows_n)) {
 			return 1;
 		}
 	}
-	if (cell->column < columns_n-1) {
-		if (same_path(cell-1, cell+rows_n) || same_path(cell-1, cell+rows_n+1) || same_path(cell+1, cell+rows_n-1) || same_path(cell+1, cell+rows_n)) {
+	if (cell->column < columns_n-1UL) {
+		if (same_path(cell-1UL, cell+rows_n) || same_path(cell-1UL, cell+rows_n+1UL) || same_path(cell+1UL, cell+rows_n-1UL) || same_path(cell+1UL, cell+rows_n)) {
 			return 1;
 		}
 	}
@@ -798,19 +854,19 @@ int touching_ns(cell_t *cell) {
 }
 
 int touching_e(cell_t *cell) {
-	if (cell->row) {
-		if (same_path(cell, cell+rows_n-1) || same_path(cell+rows_n, cell-1)) {
+	if (cell->row > 0UL) {
+		if (same_path(cell, cell+rows_n-1UL) || same_path(cell+rows_n, cell-1UL)) {
 			return 1;
 		}
-		if (same_path(cell, cell-1) && same_path(cell+rows_n, cell+rows_n-1)) {
+		if (same_path(cell, cell-1UL) && same_path(cell+rows_n, cell+rows_n-1UL)) {
 			return 1;
 		}
 	}
-	if (cell->row < rows_n-1) {
-		if (same_path(cell, cell+rows_n+1) || same_path(cell+rows_n, cell+1)) {
+	if (cell->row < rows_n-1UL) {
+		if (same_path(cell, cell+rows_n+1UL) || same_path(cell+rows_n, cell+1UL)) {
 			return 1;
 		}
-		if (same_path(cell, cell+1) && same_path(cell+rows_n, cell+rows_n+1)) {
+		if (same_path(cell, cell+1UL) && same_path(cell+rows_n, cell+rows_n+1UL)) {
 			return 1;
 		}
 	}
@@ -818,13 +874,13 @@ int touching_e(cell_t *cell) {
 }
 
 int touching_we(cell_t *cell) {
-	if (cell->row) {
-		if (same_path(cell-rows_n, cell-1) || same_path(cell-rows_n, cell+rows_n-1) || same_path(cell+rows_n, cell-rows_n-1) || same_path(cell+rows_n, cell-1)) {
+	if (cell->row > 0UL) {
+		if (same_path(cell-rows_n, cell-1UL) || same_path(cell-rows_n, cell+rows_n-1UL) || same_path(cell+rows_n, cell-rows_n-1UL) || same_path(cell+rows_n, cell-1UL)) {
 			return 1;
 		}
 	}
-	if (cell->row < rows_n-1) {
-		if (same_path(cell-rows_n, cell+1) || same_path(cell-rows_n, cell+rows_n+1) || same_path(cell+rows_n, cell-rows_n+1) || same_path(cell+rows_n, cell+1)) {
+	if (cell->row < rows_n-1UL) {
+		if (same_path(cell-rows_n, cell+1UL) || same_path(cell-rows_n, cell+rows_n+1UL) || same_path(cell+rows_n, cell-rows_n+1UL) || same_path(cell+rows_n, cell+1UL)) {
 			return 1;
 		}
 	}
@@ -832,26 +888,26 @@ int touching_we(cell_t *cell) {
 }
 
 int touching_ne(cell_t *cell) {
-	if (same_path(cell-1, cell+rows_n-1) || same_path(cell+rows_n, cell+rows_n-1)) {
+	if (same_path(cell-1UL, cell+rows_n-1UL) || same_path(cell+rows_n, cell+rows_n-1UL)) {
 		return 1;
 	}
-	if (cell->column && same_path(cell-1, cell-rows_n)) {
+	if (cell->column > 0UL && same_path(cell-1UL, cell-rows_n)) {
 		return 1;
 	}
-	if (cell->row < rows_n-1 && same_path(cell+rows_n, cell+1)) {
+	if (cell->row < rows_n-1UL && same_path(cell+rows_n, cell+1UL)) {
 		return 1;
 	}
 	return 0;
 }
 
 int touching_se(cell_t *cell) {
-	if (same_path(cell+rows_n, cell+rows_n+1) || same_path(cell+1, cell+rows_n+1)) {
+	if (same_path(cell+rows_n, cell+rows_n+1UL) || same_path(cell+1UL, cell+rows_n+1UL)) {
 		return 1;
 	}
-	if (cell->column && same_path(cell+1, cell-rows_n)) {
+	if (cell->column > 0UL && same_path(cell+1UL, cell-rows_n)) {
 		return 1;
 	}
-	if (cell->row && same_path(cell+rows_n, cell-1)) {
+	if (cell->row > 0UL && same_path(cell+rows_n, cell-1UL)) {
 		return 1;
 	}
 	return 0;
@@ -862,10 +918,10 @@ int same_path(cell_t *cell_a, cell_t *cell_b) {
 }
 
 void stack_chain(chain_t *chain, cell_t *cell, unsigned long options_n, option_t options[]) {
-unsigned long i;
+	unsigned long i;
 	chain->cell = cell;
 	chain->options_n = options_n;
-	for (i = 0; i < options_n; i++) {
+	for (i = 0UL; i < options_n; i++) {
 		chain->options[i] = options[i];
 	}
 	stack_chains_n++;
@@ -886,18 +942,41 @@ void stack_roll(roll_t *roll, cell_t *cell, choice_t *choice) {
 }
 
 void stack_unchain(chain_t *unchain, cell_t *cell, unsigned long options_n, option_t options[]) {
-unsigned long i;
+	unsigned long i;
 	unchain->cell = cell;
 	unchain->options_n = options_n;
-	for (i = 0; i < options_n; i++) {
+	for (i = 0UL; i < options_n; i++) {
 		unchain->options[i] = options[i];
 	}
 	stack_unchains_n++;
 }
 
+void print_color(color_t *color) {
+	if (distance_min > 0UL) {
+		print_cell(color->start, ' ');
+		print_cell(color->end, '\n');
+	}
+	else {
+		cell_t *cell = color->start, *next = next_cell(cell, NULL);
+		print_cell(cell, ' ');
+		while (next != color->end) {
+			cell_t *last = cell;
+			cell = next;
+			next = next_cell(cell, last);
+			print_cell(cell, ' ');
+		}
+		print_cell(next, '\n');
+	}
+}
+
+void print_cell(cell_t *cell, int c) {
+	printf("(%lu, %lu)", cell->column, cell->row);
+	putchar(c);
+}
+
 void perform_chain(chain_t *chain) {
-unsigned long i;
-	for (i = 0; i < chain->options_n; i++) {
+	unsigned long i;
+	for (i = 0UL; i < chain->options_n; i++) {
 		add_pipe(chain->cell, chain->options[i].pipe_used, chain->options[i].link);
 	}
 	chain_cell(chain->cell);
@@ -918,10 +997,10 @@ void perform_unroll(unroll_t *unroll) {
 }
 
 void unroll_link(cell_t *cell, cell_t *link, cell_t *cell_path, color_t *cell_color, cell_t *link_path, color_t *link_color) {
-	link->links[--link->links_n] = NULL;
-	link->links_max++;
-	cell->links[--cell->links_n] = NULL;
-	cell->links_max++;
+	link->links[--link->links_done] = NULL;
+	link->links_todo++;
+	cell->links[--cell->links_done] = NULL;
+	cell->links_todo++;
 	if (cell_path->rank < link_path->rank) {
 		update_path(cell, cell_path);
 		link_path->rank -= cell_path->rank;
@@ -969,16 +1048,16 @@ void roll_link(cell_t *cell, cell_t *link, unroll_t *unroll) {
 		cell->path->rank += link->path->rank;
 		update_path(link, cell->path);
 	}
-	cell->links_max--;
-	cell->links[cell->links_n++] = link;
-	link->links_max--;
-	link->links[link->links_n++] = cell;
+	cell->links_todo--;
+	cell->links[cell->links_done++] = link;
+	link->links_todo--;
+	link->links[link->links_done++] = cell;
 }
 
 void perform_unchain(chain_t *unchain) {
-unsigned long i;
+	unsigned long i;
 	unchain_cell(unchain->cell);
-	for (i = 0; i < unchain->options_n; i++) {
+	for (i = 0UL; i < unchain->options_n; i++) {
 		remove_pipe(unchain->cell, unchain->options[i].pipe_used, unchain->options[i].link);
 	}
 }
@@ -994,10 +1073,10 @@ void remove_pipe(cell_t *cell, unsigned long pipe_used, cell_t *link) {
 }
 
 void update_path(cell_t *start, cell_t *path) {
-cell_t *last, *cell = start, *next = next_cell(cell, NULL);
+	cell_t *cell = start, *next = next_cell(cell, NULL);
 	cell->path = path;
 	while (next) {
-		last = cell;
+		cell_t *last = cell;
 		cell = next;
 		next = next_cell(cell, last);
 		cell->path = path;
@@ -1005,19 +1084,17 @@ cell_t *last, *cell = start, *next = next_cell(cell, NULL);
 }
 
 cell_t *next_cell(cell_t *cell, cell_t *last) {
-unsigned long i;
-	for (i = 0; i < cell->links_n && cell->links[i] == last; i++);
-	if (i < cell->links_n) {
+	unsigned long i;
+	for (i = 0UL; i < cell->links_done && cell->links[i] == last; i++);
+	if (i < cell->links_done) {
 		return cell->links[i];
 	}
-	else {
-		return NULL;
-	}
+	return NULL;
 }
 
 void reset_color(color_t *color) {
 	color->start->color = NULL;
-	color->start->links_max++;
+	color->start->links_todo++;
 	color->end->color = NULL;
-	color->end->links_max++;
+	color->end->links_todo++;
 }

@@ -13,46 +13,76 @@ typedef struct {
 }
 color_t;
 
-int main(void) {
-unsigned long colors_n, rows_n, columns_n, i, j, number;
+void init_colors(unsigned long, unsigned long);
+
+unsigned long rows_n, columns_n;
 color_t *colors;
-	if (scanf("%lu%lu%lu", &colors_n, &rows_n, &columns_n) != 3 || !colors_n || rows_n < 2 || columns_n < 2) {
+
+int main(void) {
+	unsigned long colors_lo, colors_hi, i;
+	if (scanf("%lu%lu", &rows_n, &columns_n) != 2 || rows_n < 1UL || columns_n < 1UL || rows_n*columns_n < 2UL) {
 		fprintf(stderr, "Invalid parameters\n");
+		fflush(stderr);
 		return EXIT_FAILURE;
 	}
-	colors = malloc(sizeof(color_t)*colors_n);
+	colors = malloc(sizeof(color_t));
 	if (!colors) {
 		fprintf(stderr, "Could not allocate memory for colors\n");
+		fflush(stderr);
 		return EXIT_FAILURE;
 	}
-	for (i = 0; i < colors_n; i++) {
+	colors_lo = 0UL;
+	colors_hi = 1UL;
+	init_colors(colors_lo, colors_hi);
+	for (i = 0UL; i < rows_n; i++) {
+		unsigned long j;
+		for (j = 0UL; j < columns_n; j++) {
+			unsigned long number;
+			if (scanf("%lu", &number) == 1) {
+				if (number > colors_hi) {
+					color_t *colors_tmp = realloc(colors, sizeof(color_t)*number);
+					if (!colors_tmp) {
+						fprintf(stderr, "Could not reallocate memory for colors\n");
+						fflush(stderr);
+						free(colors);
+						return EXIT_FAILURE;
+					}
+					colors = colors_tmp;
+					colors_lo = colors_hi;
+					colors_hi = number;
+					init_colors(colors_lo, colors_hi);
+				}
+				number--;
+				if (colors[number].start.x < columns_n) {
+					colors[number].end.x = j;
+					colors[number].end.y = i;
+				}
+				else {
+					colors[number].start.x = j;
+					colors[number].start.y = i;
+				}
+			}
+			else {
+				getchar();
+			}
+		}
+	}
+	printf("%lu %lu %lu\n", colors_hi, columns_n, rows_n);
+	for (i = 0UL; i < colors_hi; i++) {
+		printf("(%lu, %lu) ", colors[i].start.x, colors[i].start.y);
+		printf("(%lu, %lu)\n", colors[i].end.x, colors[i].end.y);
+	}
+	fflush(stdout);
+	free(colors);
+	return EXIT_SUCCESS;
+}
+
+void init_colors(unsigned long lo, unsigned long hi) {
+	unsigned long i;
+	for (i = lo; i < hi; i++) {
 		colors[i].start.x = columns_n;
 		colors[i].start.y = rows_n;
 		colors[i].end.x = columns_n;
 		colors[i].end.y = rows_n;
 	}
-	for (i = 0; i < rows_n; i++) {
-		for (j = 0; j < columns_n; j++) {
-			if (scanf("%lu", &number) == 1) {
-				if (colors[number-1].start.x < columns_n) {
-					colors[number-1].end.x = j;
-					colors[number-1].end.y = i;
-				}
-				else {
-					colors[number-1].start.x = j;
-					colors[number-1].start.y = i;
-				}
-			}
-			else {
-				fgetc(stdin);
-			}
-		}
-	}
-	printf("%lu %lu %lu\n", colors_n, columns_n, rows_n);
-	for (i = 0; i < colors_n; i++) {
-		printf("(%lu, %lu) ", colors[i].start.x, colors[i].start.y);
-		printf("(%lu, %lu)\n", colors[i].end.x, colors[i].end.y);
-	}
-	free(colors);
-	return EXIT_SUCCESS;
 }

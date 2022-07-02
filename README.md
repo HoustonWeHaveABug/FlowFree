@@ -3,7 +3,7 @@ FlowFree puzzles solver and generator written in C, works also for Numberlink/Ar
 
 Both solver and generator are implemented in the same source code (flowfree.c) and executable. Only input differs depending on which functionality you want to use.
 
-A format converter is also available ("Raetsel" converter, see below).
+Two format converters are also available ("Raetsel" and "Thomas Ahle" converters, see below).
 
 The makefiles provided to generate the executables work only on Linux family operating systems but the sources are not OS specific.
 
@@ -29,9 +29,9 @@ The generator was developed to test the solver, it generates random starting pos
 
 Sample input data for the generator:
 
-12 16 14 0 3 1 1000000
+7 11 9 0 3 1 1000000
 
-It means that the generator must create a puzzle with 12 colors in a grid of 16 columns by 14 rows, with self-touching forbidden, and a minimal distance of 3 cells between two endpoints of the same color. The puzzle shall not have more than 1 solution. The number of attempts made is shown every 1000000 grids.
+It means that the generator must create a puzzle with 7 colors in a grid of 11 columns by 9 rows, with self-touching forbidden, and a minimal distance of 3 cells between two endpoints of the same color. The puzzle shall not have more than 1 solution. The number of attempts made is shown every 1000000 grids.
 
 If a grid is solved successfully but with more solutions than requested in input it is displayed with the message "Too many solutions" below.
 
@@ -43,7 +43,8 @@ The Puzzles folder contains grids from various sources converted to the solver i
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | flowfree_\*\_random\*.txt | Created by the generator |
 | flowfree_example_\*.txt | https://www.reddit.com/r/dailyprogrammer/comments/4zog32/20160826_challenge_280_hard_free_flow_solver/ |
-| flowfree_huge/large/killer.txt | https://github.com/thomasahle/numberlink/tree/master/puzzles |
+| flowfree_huge/killer/large.txt | https://github.com/thomasahle/numberlink/tree/master/puzzles |
+| flowfree_mini.txt | The smallest puzzle possible |
 | flowfree_nikoli_\*.txt | http://www.nikoli.com/en/event/puzzle_hayatoki.html |
 | flowfree_oxford_\*.txt | http://spivey.oriel.ox.ac.uk/wiki/index.php/Programming_competition_results |
 | flowfree_raetsel_\*.txt | http://www.janko.at/Raetsel/Arukone/ |
@@ -57,7 +58,6 @@ convert_raetsel.c converts grids from the format used by this numberlink solver 
 
 Input example
 ```
-7
 12
 12
 - - - - - - - - - - - 1
@@ -83,4 +83,37 @@ Output
 (4, 7) (10, 10)
 (3, 4) (5, 5)
 (2, 1) (9, 11)
+```
+
+## The "Thomas Ahle" converter
+
+convert_thomasahle.c converts grids from the format used by this (very fast) numberlink solver: https://github.com/thomasahle/numberlink to the format used by the FlowFree solver.
+
+Input example
+```
+12 12
+.......D....
+.....G......
+......G.....
+...I........
+.....C.C....
+............
+.B..........
+......E.....
+.H.E.H......
+.I.......F..
+..........B.
+.......F.D..
+```
+Output
+```
+8 12 12
+(7, 0) (9, 11)
+(5, 1) (6, 2)
+(3, 3) (1, 9)
+(5, 4) (7, 4)
+(1, 6) (10, 10)
+(6, 7) (3, 8)
+(1, 8) (5, 8)
+(9, 9) (7, 11)
 ```

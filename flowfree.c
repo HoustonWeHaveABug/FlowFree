@@ -36,7 +36,7 @@ struct color_s {
 };
 
 typedef enum {
-	CALL_SELECT,
+	CALL_SELECTION,
 	CALL_CHAIN,
 	CALL_UNROLL,
 	CALL_ROLL,
@@ -107,7 +107,7 @@ void stack_call(call_t *, call_t);
 void perform_call(call_t *);
 void stack_selection(selection_t *, cell_t *);
 void perform_selection(selection_t *);
-void set_constraint(cell_t *, constraint_t *);
+void set_constraint(cell_t *, unsigned long, constraint_t *);
 unsigned long set_options_empty(cell_t *, option_t []);
 unsigned long set_options_w(cell_t *, option_t []);
 unsigned long set_options_n(cell_t *, option_t []);
@@ -125,8 +125,8 @@ unsigned long set_options_wse(cell_t *, option_t []);
 unsigned long set_options_nse(cell_t *, option_t []);
 unsigned long set_options_wnse(cell_t *, option_t []);
 void set_option(option_t *, unsigned long, cell_t *);
-void add_roll_option(cell_t *, option_t *, unsigned long *, option_t *[]);
-void add_choices(cell_t *, option_t *[], unsigned long [], unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long *, choice_t [][LINKS_MAX]);
+void add_roll_option(cell_t *, option_t *);
+void add_choices(cell_t *, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long *, choice_t [][LINKS_MAX]);
 int roll_option(cell_t *, cell_t *);
 int no_touching(cell_t *);
 int touching_w(cell_t *);
@@ -161,17 +161,18 @@ cell_t *next_cell(cell_t *, cell_t *);
 void reset_color(color_t *);
 
 int touching_allowed, (*touching[])(cell_t *) = { no_touching, touching_w, touching_n, touching_wn, touching_s, touching_ws, touching_ns, no_touching, touching_e, touching_we, touching_ne, no_touching, touching_se, no_touching, no_touching, no_touching };
-unsigned long colors_n, columns_n, rows_n, distance_min, solutions_max, nodes_n, solutions_n, stack_calls_n, stack_selections_n, stack_chains_n, stack_unrolls_n, stack_rolls_n, stack_unchains_n, (*set_options[])(cell_t *, option_t []) = { set_options_empty, set_options_w, set_options_n, set_options_wn, set_options_s, set_options_ws, set_options_ns, set_options_wns, set_options_e, set_options_we, set_options_ne, set_options_wne, set_options_se, set_options_wse, set_options_nse, set_options_wnse };
+unsigned long colors_n, columns_n, rows_n, distance_min, solutions_max, nodes_n, solutions_n, stack_calls_n, stack_selections_n, stack_chains_n, stack_unrolls_n, stack_rolls_n, stack_unchains_n, (*set_options[])(cell_t *, option_t []) = { set_options_empty, set_options_w, set_options_n, set_options_wn, set_options_s, set_options_ws, set_options_ns, set_options_wns, set_options_e, set_options_we, set_options_ne, set_options_wne, set_options_se, set_options_wse, set_options_nse, set_options_wnse }, rolls_n, rolls_idx[LINKS_MAX];
 cell_t *cells, *cells_header;
 color_t *colors;
 call_t *stack_calls;
+option_t *rolls[OPTIONS_MAX];
 selection_t *stack_selections;
 chain_t *stack_chains, *stack_unchains;
 unroll_t *stack_unrolls;
 roll_t *stack_rolls;
 
 int main(void) {
-	unsigned long cells_n, attempts_n_mod, i, j;
+	unsigned long cells_n, row, col, attempts_n_mod;
 	cell_t *cell;
 	if (scanf("%lu%lu%lu", &colors_n, &columns_n, &rows_n) != 3 || colors_n < 1UL || columns_n < 1UL || rows_n < 1UL) {
 		fprintf(stderr, "Invalid parameters\n");
@@ -193,38 +194,38 @@ int main(void) {
 	if (columns_n == 1UL) {
 		set_cell(cells, 0UL, 0UL, PIPE_S);
 		cell = cells+1UL;
-		for (j = 1UL; j < rows_n-1UL; j++) {
-			set_cell(cell++, 0UL, j, PIPE_N+PIPE_S);
+		for (row = 1UL; row < rows_n-1UL; row++) {
+			set_cell(cell++, 0UL, row, PIPE_N+PIPE_S);
 		}
-		set_cell(cell++, 0UL, j, PIPE_N);
+		set_cell(cell++, 0UL, row, PIPE_N);
 	}
 	else if (rows_n == 1UL) {
 		set_cell(cells, 0UL, 0UL, PIPE_E);
 		cell = cells+1UL;
-		for (i = 1UL; i < columns_n-1UL; i++) {
-			set_cell(cell++, i, 0UL, PIPE_W+PIPE_E);
+		for (col = 1UL; col < columns_n-1UL; col++) {
+			set_cell(cell++, col, 0UL, PIPE_W+PIPE_E);
 		}
-		set_cell(cell++, i, 0UL, PIPE_W);
+		set_cell(cell++, col, 0UL, PIPE_W);
 	}
 	else {
 		set_cell(cells, 0UL, 0UL, PIPE_E+PIPE_S);
 		cell = cells+1UL;
-		for (j = 1UL; j < rows_n-1UL; j++) {
-			set_cell(cell++, 0UL, j, PIPE_N+PIPE_E+PIPE_S);
+		for (row = 1UL; row < rows_n-1UL; row++) {
+			set_cell(cell++, 0UL, row, PIPE_N+PIPE_E+PIPE_S);
 		}
-		set_cell(cell++, 0UL, j, PIPE_N+PIPE_E);
-		for (i = 1UL; i < columns_n-1UL; i++) {
-			set_cell(cell++, i, 0UL, PIPE_W+PIPE_E+PIPE_S);
-			for (j = 1UL; j < rows_n-1UL; j++) {
-				set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_E+PIPE_S);
+		set_cell(cell++, 0UL, row, PIPE_N+PIPE_E);
+		for (col = 1UL; col < columns_n-1UL; col++) {
+			set_cell(cell++, col, 0UL, PIPE_W+PIPE_E+PIPE_S);
+			for (row = 1UL; row < rows_n-1UL; row++) {
+				set_cell(cell++, col, row, PIPE_W+PIPE_N+PIPE_E+PIPE_S);
 			}
-			set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_E);
+			set_cell(cell++, col, row, PIPE_W+PIPE_N+PIPE_E);
 		}
-		set_cell(cell++, i, 0UL, PIPE_W+PIPE_S);
-		for (j = 1UL; j < rows_n-1UL; j++) {
-			set_cell(cell++, i, j, PIPE_W+PIPE_N+PIPE_S);
+		set_cell(cell++, col, 0UL, PIPE_W+PIPE_S);
+		for (row = 1UL; row < rows_n-1UL; row++) {
+			set_cell(cell++, col, row, PIPE_W+PIPE_N+PIPE_S);
 		}
-		set_cell(cell++, i, j, PIPE_W+PIPE_N);
+		set_cell(cell++, col, row, PIPE_W+PIPE_N);
 	}
 	cells_header = cell;
 	link_cell(cells, cells_header, cells+1UL);
@@ -247,6 +248,7 @@ int main(void) {
 		}
 	}
 	else {
+		unsigned long i;
 		distance_min = 0UL;
 		solutions_max = ULONG_MAX;
 		attempts_n_mod = 1UL;
@@ -326,6 +328,7 @@ int main(void) {
 		srand((unsigned)time(NULL));
 		attempts_n = 0UL;
 		do {
+			unsigned long i;
 			for (i = 0UL; i < colors_n; i++) {
 				set_color(colors+i);
 			}
@@ -471,7 +474,7 @@ void flowfree(void) {
 	stack_rolls_n = 0UL;
 	stack_unchains_n = 0UL;
 	stack_selection(stack_selections+stack_selections_n, cells_header->next);
-	stack_call(stack_calls, CALL_SELECT);
+	stack_call(stack_calls, CALL_SELECTION);
 	do {
 		stack_calls_n--;
 		perform_call(stack_calls+stack_calls_n);
@@ -486,7 +489,7 @@ void stack_call(call_t *call, call_t type) {
 
 void perform_call(call_t *call) {
 	switch (*call) {
-	case CALL_SELECT:
+	case CALL_SELECTION:
 		stack_selections_n--;
 		perform_selection(stack_selections+stack_selections_n);
 		break;
@@ -520,16 +523,32 @@ void perform_selection(selection_t *selection) {
 		if (solutions_n <= solutions_max) {
 			cell_t *cell_min = selection->cell, *cell;
 			constraint_t constraint_min;
-			set_constraint(cell_min, &constraint_min);
+			set_constraint(cell_min, CHOICES_MAX, &constraint_min);
 			for (cell = cell_min->next; cell != selection->cell && constraint_min.choices_n > 1UL; cell = cell->next) {
 				constraint_t constraint;
 				if (cell == cells_header) {
 					continue;
 				}
-				set_constraint(cell, &constraint);
-				if (constraint.choices_n < constraint_min.choices_n || (constraint.choices_n == constraint_min.choices_n && cell->links_todo > cell_min->links_todo)) {
-					cell_min = cell;
-					constraint_min = constraint;
+				if (cell->links_todo <= cell_min->links_todo) {
+					set_constraint(cell, constraint_min.choices_n, &constraint);
+					if (constraint.choices_n < constraint_min.choices_n) {
+						cell_min = cell;
+						constraint_min = constraint;
+					}
+				}
+				else {
+					if (constraint_min.choices_n < CHOICES_MAX) {
+						set_constraint(cell, constraint_min.choices_n+1, &constraint);
+						if (constraint.choices_n <= constraint_min.choices_n) {
+							cell_min = cell;
+							constraint_min = constraint;
+						}
+					}
+					else {
+						set_constraint(cell, CHOICES_MAX, &constraint);
+						cell_min = cell;
+						constraint_min = constraint;
+					}
 				}
 			}
 			if (constraint_min.choices_n > 0UL) {
@@ -558,7 +577,7 @@ void perform_selection(selection_t *selection) {
 							stack_selection(stack_selections+stack_selections_n, cell_min->next);
 						}
 					}
-					stack_call(stack_calls+stack_calls_n, CALL_SELECT);
+					stack_call(stack_calls+stack_calls_n, CALL_SELECTION);
 					for (; j > 0UL; j--) {
 						stack_roll(stack_rolls+stack_rolls_n, cell_min, &constraint_min.choices[i-1UL][j-1UL]);
 						stack_call(stack_calls+stack_calls_n, CALL_ROLL);
@@ -588,21 +607,20 @@ void perform_selection(selection_t *selection) {
 	}
 }
 
-void set_constraint(cell_t *cell, constraint_t *constraint) {
+void set_constraint(cell_t *cell, unsigned long choices_max, constraint_t *constraint) {
 	constraint->options_n = set_options[cell->pipes](cell, constraint->options);
 	if (cell->links_todo == 0UL) {
 		constraint->choices_n = 1UL;
 	}
 	else {
-		unsigned long rolls_n = 0UL, i;
-		option_t *rolls[OPTIONS_MAX];
+		unsigned long i;
+		rolls_n = 0UL;
 		for (i = 0UL; i < constraint->options_n; i++) {
-			add_roll_option(cell, constraint->options+i, &rolls_n, rolls);
+			add_roll_option(cell, constraint->options+i);
 		}
 		constraint->choices_n = 0UL;
 		if (rolls_n >= cell->links_todo) {
-			unsigned long rolls_idx[LINKS_MAX];
-			add_choices(cell, rolls, rolls_idx, 0UL, cell->links_todo, 0UL, rolls_n, 0UL, &constraint->choices_n, constraint->choices);
+			add_choices(cell, choices_max, 0UL, 0UL, 0UL, &constraint->choices_n, constraint->choices);
 		}
 	}
 }
@@ -709,29 +727,28 @@ void set_option(option_t *option, unsigned long pipe_used, cell_t *link) {
 	option->link = link;
 }
 
-void add_roll_option(cell_t *cell, option_t *option, unsigned long *rolls_n, option_t *rolls[]) {
+void add_roll_option(cell_t *cell, option_t *option) {
 	if (option->link->links_todo > 0UL && roll_option(cell, option->link)) {
-		rolls[*rolls_n] = option;
-		*rolls_n = *rolls_n+1UL;
+		rolls[rolls_n++] = option;
 	}
 }
 
-void add_choices(cell_t *cell, option_t *rolls[], unsigned long rolls_idx[], unsigned long step, unsigned long step_max, unsigned long rolls_start, unsigned long rolls_n, unsigned long pipes, unsigned long *choices_n, choice_t choices[][LINKS_MAX]) {
-	if (step < step_max) {
+void add_choices(cell_t *cell, unsigned long choices_max, unsigned long step, unsigned long rolls_start, unsigned long pipes, unsigned long *choices_n, choice_t choices[][LINKS_MAX]) {
+	if (step < cell->links_todo) {
 		unsigned long i;
-		for (i = rolls_start; i < rolls_n && *choices_n < CHOICES_MAX; i++) {
+		for (i = rolls_start; i < rolls_n && *choices_n < choices_max; i++) {
 			unsigned long j;
 			for (j = 0UL; j < step && roll_option(rolls[rolls_idx[j]]->link, rolls[i]->link); j++);
 			if (j == step) {
 				rolls_idx[step] = i;
-				add_choices(cell, rolls, rolls_idx, step+1UL, step_max, i+1UL, rolls_n, pipes+rolls[i]->pipe_used, choices_n, choices);
+				add_choices(cell, choices_max, step+1UL, i+1UL, pipes+rolls[i]->pipe_used, choices_n, choices);
 			}
 		}
 	}
 	else {
 		if (touching_allowed || !touching[pipes](cell)) {
 			unsigned long i;
-			for (i = 0UL; i < step_max; i++) {
+			for (i = 0UL; i < cell->links_todo; i++) {
 				choices[*choices_n][i].link = rolls[rolls_idx[i]]->link;
 			}
 			*choices_n = *choices_n+1UL;

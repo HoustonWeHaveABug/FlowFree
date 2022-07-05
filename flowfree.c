@@ -247,7 +247,17 @@ int main(void) {
 		return EXIT_FAILURE;
 	}
 	if (scanf("%d", &touching_allowed) == 1) {
-		if (scanf("%lu", &distance_min) != 1 || distance_min < 1UL || distance_min > cols_n+rows_n-colors_n-1UL || scanf("%lu%lu", &solutions_max, &attempts_n_mod) != 2 || solutions_max < 1UL || attempts_n_mod < 1UL) {
+		unsigned long path_len;
+		if (colors_n <= rows_n) {
+			path_len = cols_n+rows_n-colors_n;
+		}
+		else {
+			path_len = cells_n/colors_n;
+			while (path_len > rows_n && path_len > cols_n-path_len+rows_n-colors_n+rows_n) {
+				path_len--;
+			}
+		}
+		if (scanf("%lu", &distance_min) != 1 || distance_min < 1UL || distance_min >= path_len || scanf("%lu%lu", &solutions_max, &attempts_n_mod) != 2 || solutions_max < 1UL || attempts_n_mod < 1UL) {
 			fprintf(stderr, "Invalid generator parameters\n");
 			fflush(stderr);
 			return EXIT_FAILURE;

@@ -97,7 +97,8 @@ void set_cell(cell_t *, unsigned long, unsigned long, unsigned long);
 void link_cell(cell_t *, cell_t *, cell_t *);
 int read_color(color_t *);
 cell_t *read_cell(int);
-void set_color(color_t *);
+int set_color(color_t *);
+int search_color(void);
 unsigned long random_xy(unsigned long *, unsigned long *);
 unsigned long erand(unsigned long);
 unsigned long get_distance(unsigned long, unsigned long, unsigned long, unsigned long);
@@ -162,7 +163,7 @@ void reset_color(color_t *);
 
 int grid_rotated, touching_allowed, (*touching[])(cell_t *) = { no_touching, touching_w, touching_n, touching_wn, touching_s, touching_ws, touching_ns, no_touching, touching_e, touching_we, touching_ne, no_touching, touching_se, no_touching, no_touching, no_touching };
 unsigned long colors_n, cols_n, rows_n, distance_min, solutions_max, nodes_n, solutions_n, stack_calls_n, stack_selections_n, stack_chains_n, stack_unrolls_n, stack_rolls_n, stack_unchains_n, (*set_options[])(cell_t *, option_t []) = { set_options_empty, set_options_w, set_options_n, set_options_wn, set_options_s, set_options_ws, set_options_ns, set_options_wns, set_options_e, set_options_we, set_options_ne, set_options_wne, set_options_se, set_options_wse, set_options_nse, set_options_wnse }, rolls_n, rolls_idx[LINKS_MAX];
-cell_t *cells, *cells_header;
+cell_t *cells, *cells_header, *cell_start, *cell_end;
 color_t *colors;
 call_t *stack_calls;
 option_t *rolls[OPTIONS_MAX];
@@ -345,12 +346,14 @@ int main(void) {
 		attempts_n = 0UL;
 		do {
 			unsigned long i;
-			for (i = 0UL; i < colors_n; i++) {
-				set_color(colors+i);
+			cell_start = cells;
+			cell_end = cell_start->next;
+			for (i = 0UL; i < colors_n && set_color(colors+i); i++);
+			if (i == colors_n) {
+				flowfree();
 			}
-			flowfree();
-			for (i = 0UL; i < colors_n; i++) {
-				reset_color(colors+i);
+			for (; i > 0UL; i--) {
+				reset_color(colors+i-1UL);
 			}
 			attempts_n++;
 			if (attempts_n%attempts_n_mod == 0UL) {
@@ -448,7 +451,10 @@ cell_t *read_cell(int c) {
 	return cells+rows_n*x+y;
 }
 
-void set_color(color_t *color) {
+int set_color(color_t *color) {
+	if (!search_color()) {
+		return 0;
+	}
 	unsigned long start_x, start_y, end_x, end_y;
 	do {
 		color->start = cells+random_xy(&start_x, &start_y);
@@ -457,6 +463,27 @@ void set_color(color_t *color) {
 	while (color->start == color->end || color->start->color || color->end->color || get_distance(start_x, start_y, end_x, end_y) < distance_min);
 	set_cell_color(color->start, color);
 	set_cell_color(color->end, color);
+	return 1;
+}
+
+int search_color(void) {
+	if (!cell_start->color) {
+		for (; cell_end != cells_header; cell_end = cell_end->next) {
+			if (!cell_end->color && get_distance(cell_start->col, cell_start->row, cell_end->col, cell_end->row) >= distance_min) {
+				return 1;
+			}
+		}
+	}
+	for (cell_start = cell_start->next; cell_start != cells_header; cell_start = cell_start->next) {
+		if (!cell_start->color) {
+			for (cell_end = cell_start->next; cell_end != cells_header; cell_end = cell_end->next) {
+				if (!cell_end->color && get_distance(cell_start->col, cell_start->row, cell_end->col, cell_end->row) >= distance_min) {
+					return 1;
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 unsigned long random_xy(unsigned long *x, unsigned long *y) {
